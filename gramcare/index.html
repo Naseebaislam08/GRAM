@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GramCare AI (MediNova) — Rural Emergency & Health Companion</title>
+  <meta name="description" content="AI-powered emergency assistant, hospital locator, and medication safety dashboard for rural, low-resource communities in India.">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+  <!-- App Shell simulating Native Mobile View -->
+  <div class="app-shell">
+
+    <!-- Ambient background glows -->
+    <div class="ambient-glow ambient-left"></div>
+    <div class="ambient-glow ambient-right"></div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="missed-dose-banner" style="display: none; margin: 0.5rem 1rem 0 1rem; border-color: var(--severity-medium);">
+      <div class="missed-dose-left">
+        <span class="icon">📶</span>
+        <div class="missed-dose-info">
+          <h4>Offline Mode Active</h4>
+          <p id="offline-banner-text">Accessing Cached Offline Emergency Protocols</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Header (Hidden on Splash screen) -->
+    <header id="main-header" style="display: none;">
+      <div class="logo-container" id="brand-logo" onclick="goToHome()">
+        <div class="logo-icon">+</div>
+        <div class="logo-text">
+          <h1 id="app-title-main">gramcare.ai</h1>
+          <p id="app-tagline">MediNova Companion</p>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="lang-toggle-container" id="lang-switcher">
+          <button id="btn-lang-en" class="lang-btn active" onclick="switchLanguage('en')">EN</button>
+          <button id="btn-lang-hi" class="lang-btn" onclick="switchLanguage('hi')">हिं</button>
+          <button id="btn-lang-mv" class="lang-btn" onclick="switchLanguage('mv')">मा</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Floating SOS Action Button -->
+    <div class="sos-float-btn" id="floating-sos" style="display: none;" onclick="triggerSosEmergency()">
+      <span>🚨</span>
+      SOS
+    </div>
+
+    <!-- Main View Panel Layout -->
+    <main class="app-main">
+
+      <!-- View 0: Splash & Portal Login Screen -->
+      <section id="view-splash" class="view-panel active">
+        <div class="splash-screen">
+          <div class="splash-logo-container">g</div>
+          <h2>gramcare.ai</h2>
+          <p data-key="landing_subtitle">Your Rural Health Companion • आपका ग्रामीण स्वास्थ्य साथी</p>
+          
+          <!-- Regional Dialect Translation Select -->
+          <div class="splash-lang-select">
+            <div id="splash-lang-en" class="splash-lang-chip active" onclick="switchLanguage('en')">English</div>
+            <div id="splash-lang-hi" class="splash-lang-chip" onclick="switchLanguage('hi')">हिन्दी</div>
+            <div id="splash-lang-mv" class="splash-lang-chip" onclick="switchLanguage('mv')">मालवी (माळवी)</div>
+          </div>
+
+          <!-- Role Selection Screen -->
+          <div class="role-container" id="splash-role-select">
+            <div class="role-card" onclick="selectLoginRole('patient')">
+              <div class="role-card-icon">👤</div>
+              <div class="role-card-info">
+                <h4 data-key="role_patient_title">I am a Patient</h4>
+                <p data-key="role_patient_desc">Access medicine reminders, symptom chat & hospital finder</p>
+              </div>
+            </div>
+            <div class="role-card" onclick="selectLoginRole('doctor')">
+              <div class="role-card-icon" style="background:rgba(124,58,237,0.1); color:var(--accent-purple);">🩺</div>
+              <div class="role-card-info">
+                <h4 data-key="role_doctor_title">I am a Doctor</h4>
+                <p data-key="role_doctor_desc">Access diagnosis dash, clinical record manager & queues</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phone login Form Container -->
+          <div class="login-form-card" id="splash-login-form" style="display: none;">
+            <div class="login-input-group">
+              <label for="login-phone" id="login-phone-label">Enter Mobile Number or Patient ID</label>
+              <input type="tel" id="login-phone" placeholder="e.g. 98765 43210">
+            </div>
+            <button class="btn-primary" style="margin-bottom:0.75rem;" onclick="submitLogin()">
+              <span data-key="login_btn">Get Secure OTP →</span>
+            </button>
+            <button class="btn-secondary" style="width:100%;" onclick="backToRoles()">
+              <span data-key="login_back">← Back to Selection</span>
+            </button>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);" id="register-trigger-container">
+              New to MediNova? <a href="#" onclick="showRegisterForm()" style="color: var(--accent-blue); font-weight: bold; text-decoration: none;">Create Account</a>
+            </div>
+          </div>
+
+          <!-- Account Registration Form Container -->
+          <div class="login-form-card" id="splash-register-form" style="display: none;">
+            <h3 style="font-size: 1rem; color: white; margin-bottom: 1rem; text-align: left;">Create Account</h3>
+            
+            <div class="login-input-group">
+              <label for="reg-name">Full Name</label>
+              <input type="text" id="reg-name" placeholder="e.g. Ramesh Patidar">
+            </div>
+            
+            <div class="login-input-group">
+              <label for="reg-phone">Mobile Number</label>
+              <input type="tel" id="reg-phone" placeholder="e.g. 9876543210">
+            </div>
+            
+            <!-- Side by side columns for age and blood group on mobile -->
+            <div style="display: flex; gap: 0.5rem; width: 100%;">
+              <div class="login-input-group" style="flex: 1;">
+                <label for="reg-age">Age</label>
+                <input type="number" id="reg-age" placeholder="e.g. 35" min="1" max="120">
+              </div>
+              <div class="login-input-group" style="flex: 1;">
+                <label for="reg-blood">Blood Group</label>
+                <select id="reg-blood" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-glow); border-radius:12px; padding:0.75rem 0.5rem; color:white; font-size:0.95rem; outline:none; height: 44px;">
+                  <option value="O+">O+</option>
+                  <option value="A+">A+</option>
+                  <option value="B+">B+</option>
+                  <option value="AB+">AB+</option>
+                  <option value="O-">O-</option>
+                  <option value="A-">A-</option>
+                  <option value="B-">B-</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="login-input-group">
+              <label for="reg-lang">Preferred Language</label>
+              <select id="reg-lang" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-glow); border-radius:12px; padding:0.75rem 1rem; color:white; font-size:0.95rem; outline:none; height: 44px;">
+                <option value="en">English</option>
+                <option value="hi">हिन्दी</option>
+                <option value="mv">मालवी (माळवी)</option>
+              </select>
+            </div>
+
+            <button class="btn-primary" style="margin-bottom:0.75rem;" onclick="submitRegistration()">
+              <span>Register & Login →</span>
+            </button>
+            <button class="btn-secondary" style="width:100%;" onclick="cancelRegistration()">
+              <span>← Back to Login</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 1: Patient Portal / Home Dashboard -->
+      <section id="view-dashboard" class="view-panel">
+        <div class="welcome-banner">
+          <h2 id="patient-welcome-title"><span id="patient-welcome-prefix">Good morning, </span><span id="patient-welcome-name">Mr. James</span></h2>
+          <p id="patient-welcome-subtitle" data-key="dash_status">Your health status is looking stable today. How can we help?</p>
+        </div>
+
+        <!-- Emergency Ambulance speed-call card -->
+        <div class="glass-card" style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid var(--severity-critical); border-radius: 16px; padding: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; animation: bannerPulse 2.5s infinite alternate; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 2.2rem; filter: drop-shadow(0 0 5px rgba(239,68,68,0.5)); line-height: 1;">🚑</span>
+            <div style="text-align: left;">
+              <h4 style="font-size: 0.95rem; color: white; font-weight: bold; margin: 0;">Emergency Ambulance</h4>
+              <p style="font-size: 0.7rem; color: var(--text-secondary); margin: 2px 0 0 0;">Speed dial 108 for emergency medical services</p>
+            </div>
+          </div>
+          <button class="btn-primary" style="background: var(--severity-critical); border-radius: 10px; padding: 0.5rem 0.9rem; font-size: 0.85rem; font-weight: bold; width: auto; font-family: Outfit; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); flex-shrink: 0;" onclick="callAmbulance()">
+            📞 CALL 108
+          </button>
+        </div>
+
+        <!-- Quick Action Tiles Grid -->
+        <div class="quick-actions-grid">
+          <div class="quick-action-button" onclick="showView('chatbot')">
+            <div class="quick-action-left">
+              <div class="quick-action-icon-box ai">💬</div>
+              <div class="quick-action-info">
+                <h4 data-key="quick_ai_title">Talk to AI Doctor</h4>
+                <p data-key="quick_ai_desc">Instant medical protocols in English, हिन्दी, or मालवी</p>
+              </div>
+            </div>
+            <span style="color:var(--accent-blue);">➔</span>
+          </div>
+
+          <div class="quick-action-button" onclick="showView('hospitals')">
+            <div class="quick-action-left">
+              <div class="quick-action-icon-box hospital">🏥</div>
+              <div class="quick-action-info">
+                <h4 data-key="quick_hosp_title">Nearby Hospitals</h4>
+                <p data-key="quick_hosp_desc">Find Mangaliya PHC and open medical centers</p>
+              </div>
+            </div>
+            <span style="color:var(--severity-low);">➔</span>
+          </div>
+
+          <div class="quick-action-button" onclick="showView('myths')">
+            <div class="quick-action-left">
+              <div class="quick-action-icon-box telemed" style="background:rgba(245,158,11,0.12); color:var(--severity-medium);">📚</div>
+              <div class="quick-action-info">
+                <h4 data-key="quick_myths_title">Myth Buster Guide</h4>
+                <p data-key="quick_myths_desc">Busting traditional medical errors in rural areas</p>
+              </div>
+            </div>
+            <span style="color:var(--severity-medium);">➔</span>
+          </div>
+
+          <div class="quick-action-button" onclick="showView('checker')">
+            <div class="quick-action-left">
+              <div class="quick-action-icon-box checker">✏</div>
+              <div class="quick-action-info">
+                <h4 data-key="quick_checker_title">Medicine Safety Checker</h4>
+                <p data-key="quick_checker_desc">Verify medicine safety by expiration thresholds</p>
+              </div>
+            </div>
+            <span style="color:var(--severity-medium);">➔</span>
+          </div>
+        </div>
+
+        <!-- Daily Insight Medication Card -->
+        <div class="glass-card">
+          <div class="insight-card-inner">
+            <div class="insight-img-box">💊</div>
+            <div class="insight-details">
+              <span class="label" data-key="insight_label">Daily Insight</span>
+              <h4 data-key="insight_med_title">Time for Lisinopril Medication</h4>
+              <p data-key="insight_med_desc">Take Lisinopril with a full glass of water. It helps keep your blood pressure steady.</p>
+            </div>
+          </div>
+          <button class="btn-primary insight-btn" id="btn-log-insight-med" onclick="logInsightMedication()">
+            <span data-key="insight_med_btn">Log Medication Taken</span>
+          </button>
+        </div>
+
+        <!-- Upcoming Appointment Card -->
+        <div class="glass-card" id="dashboard-appt-card">
+          <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+            <h3 style="font-size:0.8rem; font-weight:bold;" data-key="upcoming_appt_title">Upcoming Telemedicine Consultation</h3>
+          </div>
+          <div class="appointment-card-body">
+            <div class="appointment-avatar">SR</div>
+            <div class="appointment-info">
+              <h4 id="dash-appt-doctor">Dr. Sangeeta Rao</h4>
+              <p id="dash-appt-specialty">General Consultant • Today, 4:30 PM</p>
+            </div>
+          </div>
+          <div class="appointment-actions">
+            <button class="btn-primary" onclick="startConsultation('Dr. Sangeeta Rao', 'General Consultant')">
+              <span data-key="btn_join_call">Join Call</span>
+            </button>
+            <button class="btn-secondary" onclick="rescheduleAppointment()">
+              <span data-key="btn_reschedule">Reschedule</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 2: Emergency AI Assistant Chat -->
+      <section id="view-chatbot" class="view-panel">
+        <div class="chatbot-grid">
+          
+          <!-- Severity Visual Pulsing Alert Panel -->
+          <div id="severity-alert-banner" class="alert-banner-green" style="margin-bottom: 0.5rem;">
+            <div class="alert-icon-wrapper" id="severity-icon">✓</div>
+            <div class="alert-info">
+              <h3 id="severity-title" data-key="severity_safe_title">System Ready</h3>
+              <p id="severity-desc" data-key="severity_safe_desc">Report symptoms to see priority detection and critical instructions.</p>
+            </div>
+          </div>
+
+          <!-- Chat bubble screen -->
+          <div class="glass-card chat-card">
+            <div class="chat-header">
+              <div class="active-symptom-display">
+                <span data-key="chat_status_active">Severity:</span>
+                <span id="active-severity-pill" class="severity-pill low">Low</span>
+              </div>
+              <button id="btn-clear-chat" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="clearChat()">
+                <span data-key="chat_clear">Clear</span>
+              </button>
+            </div>
+
+            <!-- Message box lists -->
+            <div class="chat-messages" id="chat-messages-box">
+              <div class="message-bubble assistant">
+                <p id="chat-greeting" data-key="chat_welcome">Hello, I am your GramCare Emergency Assistant. Please describe your symptoms or tell me what happened in English, Hindi, or Malvi (e.g. "snake bite", "सीने में दर्द", or "घबराट हो रही है").</p>
+              </div>
+            </div>
+
+            <!-- Listening Feedback indicator -->
+            <div id="voice-recording-feedback" class="voice-status-feedback" style="display: none; margin: 0.5rem 0.75rem 0 0.75rem;">
+              <div class="voice-indicator-dot"></div>
+              <span id="voice-recording-text">Listening... Speak now.</span>
+            </div>
+
+            <!-- Chat input area container -->
+            <div class="chat-input-area">
+              <div class="input-wrapper">
+                <input type="text" id="chat-user-input" placeholder="Describe symptoms here..." onkeydown="handleChatKey(event)">
+                
+                <!-- circular mic voice input button -->
+                <button id="btn-mic-chat" class="mic-btn-main" title="Voice Input" onclick="toggleVoiceInput()">
+                  🎤
+                </button>
+                
+                <!-- send button -->
+                <button id="btn-send-chat" class="submit-btn" onclick="sendChatMessage()">
+                  ➔
+                </button>
+              </div>
+
+              <!-- Keyword Quick Chips -->
+              <div class="suggestions-row" id="suggestions-row">
+                <span class="suggestion-chip" onclick="applySuggestion('Chest pain and sweating')">💔 Chest Pain</span>
+                <span class="suggestion-chip" onclick="applySuggestion('Snake bite on leg')">🐍 Snake Bite</span>
+                <span class="suggestion-chip" onclick="applySuggestion('Thermal hot boiling water burn')">🔥 Skin Burn</span>
+                <span class="suggestion-chip" onclick="applySuggestion('Choking and cannot breathe')">窒 Choking</span>
+                <span class="suggestion-chip" onclick="applySuggestion('Person fainted and is unconscious')">💤 Fainted</span>
+                <span class="suggestion-chip" onclick="applySuggestion('High fever with cold shivering')">🤒 Fever</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Checklist box (Nests details) -->
+          <div class="glass-card first-aid-card" id="first-aid-details-box" style="margin-top: 0.5rem;">
+            <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+              <div class="card-title-group">
+                <span style="font-size:1.1rem;">🚑</span>
+                <h2 data-key="first_aid_title">First Aid Steps</h2>
+              </div>
+            </div>
+            <p id="first-aid-intro" style="font-size: 0.75rem; color: var(--text-secondary);" data-key="first_aid_intro">Follow these steps carefully while assistance is arriving:</p>
+            <ul class="first-aid-steps" id="first-aid-steps-list">
+              <li data-key="first_aid_step_default">Start by describing your symptoms in the chat.</li>
+            </ul>
+
+            <!-- Relevant surfaced dangerous Traditional myth -->
+            <div id="chat-myth-surfaced" class="myth-correct-action" style="display: none; margin-top: 1rem; cursor: pointer;">
+              <span style="font-size:1.1rem;">⚠️</span>
+              <div>
+                <h4 id="chat-myth-title" style="color:#ef4444;">Dangerous Myth spotted!</h4>
+                <p id="chat-myth-text" style="color:var(--text-secondary); font-size:0.7rem; line-height:1.3;">Traditional myth practices observed here. Click to review correct action.</p>
+              </div>
+            </div>
+
+            <!-- Route Map Quick Link -->
+            <button id="btn-chat-hospital-shortcut" class="btn-primary" style="width:100%; margin-top: 1rem; display: none;" onclick="showView('hospitals')">
+              <span data-key="chat_goto_hospitals">Find Nearest Hospital Now</span>
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- View 3: Indore Hospital Route finder -->
+      <section id="view-hospitals" class="view-panel">
+        <div class="hospital-finder-grid">
+          
+          <div class="glass-card" style="padding:0.75rem 1rem;">
+            <h3 style="font-size:0.9rem;" data-key="hospitals_near_mangaliya">Emergency Centers Near Mangaliya</h3>
+            <p style="font-size:0.7rem; color:var(--text-secondary);" data-key="hospitals_subheading">Indore District, MP (Sorted by distance)</p>
+          </div>
+
+          <!-- Hospital cards timeline listing -->
+          <div class="hospitals-list" id="hospitals-list-box">
+            
+            <!-- Card 1: PHC Nearest highlighted -->
+            <div class="hospital-card highlighted active" id="hospital-phc" onclick="selectHospital('phc')">
+              <div class="hospital-card-top">
+                <div>
+                  <div class="hospital-name">Mangaliya Primary Health Centre (PHC)</div>
+                  <div style="font-size: 0.6rem; color: var(--severity-critical); font-weight: bold; margin-top: 0.1rem;" data-key="nearest_facility_badge">★ NEAREST FACILITY</div>
+                </div>
+                <div class="hospital-distance">1.4 km</div>
+              </div>
+              <div class="hospital-details-row">
+                <div>⏱ 4 mins travel time</div>
+                <div>
+                  <span class="availability-badge available">● Available 24/7</span>
+                </div>
+              </div>
+              <button class="call-btn-hospital" onclick="event.stopPropagation(); makeCall('+91 731 2802022')">
+                📞 Call: +91 731 2802022
+              </button>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="hospital-card" id="hospital-card2" onclick="selectHospital('chl')">
+              <div class="hospital-card-top">
+                <div class="hospital-name">CHL Hospital Indore</div>
+                <div class="hospital-distance">9.8 km</div>
+              </div>
+              <div class="hospital-details-row">
+                <div>⏱ 18 mins travel time</div>
+                <div>
+                  <span class="availability-badge available">● Available 24/7</span>
+                </div>
+              </div>
+              <button class="call-btn-hospital" onclick="event.stopPropagation(); makeCall('+91 731 4774444')">
+                📞 Call: +91 731 4774444
+              </button>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="hospital-card" id="hospital-card3" onclick="selectHospital('bombay')">
+              <div class="hospital-card-top">
+                <div class="hospital-name">Bombay Hospital Indore</div>
+                <div class="hospital-distance">8.2 km</div>
+              </div>
+              <div class="hospital-details-row">
+                <div>⏱ 15 mins travel time</div>
+                <div>
+                  <span class="availability-badge available">● Available 24/7</span>
+                </div>
+              </div>
+              <button class="call-btn-hospital" onclick="event.stopPropagation(); makeCall('+91 731 2500300')">
+                📞 Call: +91 731 2500300
+              </button>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="hospital-card" id="hospital-card4" onclick="selectHospital('district')">
+              <div class="hospital-card-top">
+                <div class="hospital-name">District Hospital Indore</div>
+                <div class="hospital-distance">12.5 km</div>
+              </div>
+              <div class="hospital-details-row">
+                <div>⏱ 25 mins travel time</div>
+                <div>
+                  <span class="availability-badge available">● Available 24/7</span>
+                </div>
+              </div>
+              <button class="call-btn-hospital" onclick="event.stopPropagation(); makeCall('+91 731 2438200')">
+                📞 Call: +91 731 2438200
+              </button>
+            </div>
+
+            <!-- Card 5 -->
+            <div class="hospital-card" id="hospital-card5" onclick="selectHospital('kokilaben')">
+              <div class="hospital-card-top">
+                <div class="hospital-name">Kokilaben Dhirubhai Ambani Hospital</div>
+                <div class="hospital-distance">11.2 km</div>
+              </div>
+              <div class="hospital-details-row">
+                <div>⏱ 20 mins travel time</div>
+                <div>
+                  <span class="availability-badge available">● Available 24/7</span>
+                </div>
+              </div>
+              <button class="call-btn-hospital" onclick="event.stopPropagation(); makeCall('+91 731 4888888')">
+                📞 Call: +91 731 4888888
+              </button>
+            </div>
+          </div>
+
+          <!-- Interactive vector road routing canvas map -->
+          <div class="glass-card map-card">
+            <div class="chat-header" style="padding: 0.75rem 1rem;">
+              <h4 style="color: white; font-size:0.85rem;" data-key="map_heading">Indore Sector Route Map</h4>
+              <span id="route-eta-badge" class="severity-pill low" style="font-size:0.65rem;">PHC: 4 mins</span>
+            </div>
+            
+            <div class="map-wrapper">
+              <div class="map-canvas">
+                <div class="map-grid-overlay"></div>
+                
+                <!-- road lines background vector layout -->
+                <div class="map-road r1"></div>
+                <div class="map-road r2"></div>
+                <div class="map-road r3"></div>
+                <div class="map-road r4"></div>
+
+                <!-- Animated svg routes overlay -->
+                <svg class="map-route-svg">
+                  <path id="route-phc" class="map-route-line active" d="M 216 150 L 250 140 L 290 100" />
+                  <path id="route-chl" class="map-route-line" d="M 216 150 L 250 140 L 320 160 L 380 180" />
+                  <path id="route-bombay" class="map-route-line" d="M 216 150 L 170 170 L 140 190" />
+                  <path id="route-district" class="map-route-line" d="M 216 150 L 140 120 L 120 70" />
+                  <path id="route-kokilaben" class="map-route-line" d="M 216 150 L 250 140 L 310 110 L 390 115" />
+                </svg>
+
+                <!-- markers pins positioning -->
+                <div class="map-marker user-location m-user" title="You are here (Mangaliya)">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">Mangaliya (You)</div>
+                </div>
+
+                <div id="pin-phc" class="map-marker m-phc active" onclick="selectHospital('phc')">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">Mangaliya PHC (1.4km)</div>
+                </div>
+                <div id="pin-chl" class="map-marker m-h3" onclick="selectHospital('chl')">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">CHL Hosp (9.8km)</div>
+                </div>
+                <div id="pin-bombay" class="map-marker m-h4" onclick="selectHospital('bombay')">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">Bombay Hosp (8.2km)</div>
+                </div>
+                <div id="pin-district" class="map-marker m-h5" onclick="selectHospital('district')">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">District Hosp (12.5km)</div>
+                </div>
+                <div id="pin-kokilaben" class="map-marker m-h2" onclick="selectHospital('kokilaben')">
+                  <div class="marker-pin"></div>
+                  <div class="marker-label">Kokilaben (11.2km)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View 4: TIMELINED MEDICINES REMINDER VIEW -->
+      <section id="view-reminders" class="view-panel">
+        
+        <!-- Missed dose alert banner -->
+        <div class="missed-dose-banner" id="missed-dose-alert" style="display: none;">
+          <div class="missed-dose-left">
+            <span class="icon">⚠️</span>
+            <div class="missed-dose-info">
+              <h4 data-key="reminder_missed_heading">Missed Dose: Metformin</h4>
+              <p data-key="reminder_missed_desc">Scheduled for 8:00 AM. Please take it now if safe.</p>
+            </div>
+          </div>
+          <button class="btn-resolve" onclick="resolveMissedDose()">Resolve</button>
+        </div>
+
+        <div class="glass-card" style="padding:0.75rem 1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size:0.95rem;" data-key="reminders_today_title">Daily Pill Reminders</h3>
+            <div style="display:flex; align-items:center; gap:0.25rem;">
+              <span style="font-size:0.7rem; color:var(--text-secondary);">Voice Assistance:</span>
+              <input type="checkbox" id="voice-reminder-toggle" style="cursor:pointer;" onchange="toggleVoiceReminders()">
+            </div>
+          </div>
+        </div>
+
+        <!-- TIMELINE LISTING -->
+        <div class="reminder-list-container">
+          
+          <!-- MORNING TIMELINE -->
+          <div class="time-slot-heading">
+            <span>☀️</span>
+            <span data-key="morning_label">MORNING (8:00 AM)</span>
+          </div>
+          
+          <div class="reminder-item-card" id="med-reminder-metformin">
+            <div class="reminder-item-left">
+              <span class="reminder-item-icon">💊</span>
+              <div class="reminder-item-info">
+                <h4>Metformin 500mg</h4>
+                <p data-key="metformin_instructions">Take 1 tablet with breakfast food</p>
+                <span class="missed-label" id="metformin-missed-badge">Missed</span>
+              </div>
+            </div>
+            <button class="btn-taken" id="btn-taken-metformin" onclick="markReminderTaken('metformin')">Mark as Taken</button>
+          </div>
+
+          <!-- AFTERNOON TIMELINE -->
+          <div class="time-slot-heading">
+            <span>🌤</span>
+            <span data-key="afternoon_label">AFTERNOON (1:00 PM)</span>
+          </div>
+
+          <div class="reminder-item-card" id="med-reminder-lisinopril">
+            <div class="reminder-item-left">
+              <span class="reminder-item-icon">🧴</span>
+              <div class="reminder-item-info">
+                <h4>Lisinopril 10mg</h4>
+                <p data-key="lisinopril_instructions">Take 1 tablet once daily</p>
+              </div>
+            </div>
+            <button class="btn-taken" id="btn-taken-lisinopril" onclick="markReminderTaken('lisinopril')">Mark as Taken</button>
+          </div>
+
+          <!-- NIGHT TIMELINE -->
+          <div class="time-slot-heading">
+            <span>🌙</span>
+            <span data-key="night_label">NIGHT (9:00 PM)</span>
+          </div>
+
+          <div class="reminder-item-card" id="med-reminder-atorvastatin">
+            <div class="reminder-item-left">
+              <span class="reminder-item-icon">🩺</span>
+              <div class="reminder-item-info">
+                <h4>Atorvastatin 20mg</h4>
+                <p data-key="atorvastatin_instructions">Take 1 tablet before bed</p>
+              </div>
+            </div>
+            <button class="btn-taken" id="btn-taken-atorvastatin" onclick="markReminderTaken('atorvastatin')">Mark as Taken</button>
+          </div>
+
+          <!-- Add reminder button -->
+          <button class="btn-add-reminder" onclick="openAddReminderModal()">
+            <span>+</span> Add New Medicine Reminder
+          </button>
+        </div>
+
+        <!-- Add Custom Reminder Inline Card Drawer -->
+        <div class="glass-card" id="add-reminder-drawer" style="display: none; margin-top: 1rem;">
+          <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+            <h3 style="font-size:0.85rem;">Add New Pill</h3>
+          </div>
+          <div class="expiry-checker-form">
+            <div class="form-group">
+              <label>Medicine Name</label>
+              <input type="text" id="new-reminder-name" placeholder="e.g. Paracetamol 500mg">
+            </div>
+            <div class="form-group">
+              <label>Timing Schedule</label>
+              <select id="new-reminder-time" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-glow); border-radius:10px; padding:0.6rem; color:white; font-size:0.85rem; outline:none;">
+                <option value="morning">Morning (8:00 AM)</option>
+                <option value="afternoon">Afternoon (1:00 PM)</option>
+                <option value="night">Night (9:00 PM)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Pill Instructions</label>
+              <input type="text" id="new-reminder-desc" placeholder="e.g. Take 1 tablet after meals">
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button class="btn-primary" style="flex:1;" onclick="submitCustomReminder()">Save Reminder</button>
+              <button class="btn-secondary" style="flex:1;" onclick="closeAddReminderModal()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- View 5: Scientific Myth Buster -->
+      <section id="view-myths" class="view-panel">
+        <div class="glass-card" style="padding:0.75rem 1rem;">
+          <h3 style="font-size:0.95rem;" data-key="myths_title">Health Myth Buster</h3>
+          <p style="font-size:0.7rem; color:var(--text-secondary);" data-key="myths_subtitle">Scientific corrections for dangerous traditional practices in rural India.</p>
+        </div>
+
+        <div class="myth-grid">
+          <!-- Snake bite myth -->
+          <div class="glass-card myth-card fatal" id="myth-snake-bite">
+            <span class="danger-badge fatal" data-key="myth_badge_fatal">FATAL DANGER</span>
+            <h3 style="font-size:0.85rem; color:white; width:75%;" data-key="myth1_title">Snake Bite Treatment</h3>
+            <div class="myth-statement">
+              <span>✕</span>
+              <span data-key="myth1_myth">Myth: Suck out the venom or tie a tight tourniquet.</span>
+            </div>
+            <p class="myth-explanation" data-key="myth1_exp">Sucking venom introduces mouth bacteria to the wound, does not remove venom, and poisons the rescuer. Tourniquets block arterial blood flow and often lead to limb amputations.</p>
+            <div class="myth-correct-action">
+              <span>✓</span>
+              <div>
+                <h4 data-key="correct_action_label">Correct Action</h4>
+                <p data-key="myth1_correct">Keep the victim completely still (movement spreads venom), keep the bitten limb below heart level, and go to the nearest PHC immediately for anti-venom.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Burns myth -->
+          <div class="glass-card myth-card harmful" id="myth-burn">
+            <span class="danger-badge harmful" data-key="myth_badge_harmful">HARMFUL</span>
+            <h3 style="font-size:0.85rem; color:white; width:75%;" data-key="myth2_title">Burn Wounds</h3>
+            <div class="myth-statement">
+              <span>✕</span>
+              <span data-key="myth2_myth">Myth: Apply ghee, mustard oil, butter, or toothpaste.</span>
+            </div>
+            <p class="myth-explanation" data-key="myth2_exp">Greasy substances and fats trap high heat inside the skin tissues, causing the burn to sink deeper. Toothpaste contains irritating chemicals that lead to severe tissue infection.</p>
+            <div class="myth-correct-action">
+              <span>✓</span>
+              <div>
+                <h4 data-key="correct_action_label">Correct Action</h4>
+                <p data-key="myth2_correct">Hold the burned area under clean, cool running water for 10-20 minutes. Cover loosely with a clean, dry, sterile cloth and visit a clinic.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Unconscious myth -->
+          <div class="glass-card myth-card fatal" id="myth-unconscious">
+            <span class="danger-badge fatal" data-key="myth_badge_fatal">FATAL DANGER</span>
+            <h3 style="font-size:0.85rem; color:white; width:75%;" data-key="myth3_title">Fainting & Unconsciousness</h3>
+            <div class="myth-statement">
+              <span>✕</span>
+              <span data-key="myth3_myth">Myth: Force-feed water, onion juice, or hot tea.</span>
+            </div>
+            <p class="myth-explanation" data-key="myth3_exp">An unconscious person cannot swallow safely. Forcing fluids or food down their mouth causes the contents to enter their lungs, leading to choking and asphyxiation.</p>
+            <div class="myth-correct-action">
+              <span>✓</span>
+              <div>
+                <h4 data-key="correct_action_label">Correct Action</h4>
+                <p data-key="myth3_correct">Place the person in the recovery position (on their side) to keep the airway open, loosen tight clothes, monitor breathing, and call emergency help.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- cow dung open wound myth -->
+          <div class="glass-card myth-card fatal" id="myth-dung">
+            <span class="danger-badge fatal" data-key="myth_badge_fatal">FATAL DANGER</span>
+            <h3 style="font-size:0.85rem; color:white; width:75%;" data-key="myth4_title">Open Wounds & Bleeding</h3>
+            <div class="myth-statement">
+              <span>✕</span>
+              <span data-key="myth4_myth">Myth: Apply mud, ash, or cow dung on open cuts.</span>
+            </div>
+            <p class="myth-explanation" data-key="myth4_exp">Mud and cow dung contain dangerous spores of Clostridium tetani and other deadly pathogens, which cause severe sepsis and tetanus infections.</p>
+            <div class="myth-correct-action">
+              <span>✓</span>
+              <div>
+                <h4 data-key="correct_action_label">Correct Action</h4>
+                <p data-key="myth4_correct">Wash the wound with clean water and mild soap. Apply direct pressure with a clean cloth to stop bleeding and get a tetanus booster vaccine.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- View 6: Telemedicine Consultation portals -->
+      <section id="view-doctors" class="view-panel">
+        <div class="glass-card" style="padding:0.75rem 1rem;">
+          <h3 style="font-size:0.95rem;" data-key="telemedicine_title">Virtual Doctor Consultations</h3>
+          <p style="font-size:0.7rem; color:var(--text-secondary);" data-key="telemedicine_subtitle">Backup connection to general practitioners and specialists for non-life-threatening advice.</p>
+        </div>
+
+        <div class="doctors-grid">
+          <!-- Doc 1 -->
+          <div class="glass-card doctor-card">
+            <div class="doc-status-indicator">
+              <div class="doc-status-dot online"></div>
+              <span style="color:var(--severity-low);">Online</span>
+            </div>
+            <div class="doc-avatar-container">
+              <div class="appointment-avatar" style="background:#2563eb;">PS</div>
+            </div>
+            <div style="flex:1;">
+              <h4 class="doc-name">Dr. Priya Sharma</h4>
+              <p class="doc-specialty" data-key="spec_general">General Physician</p>
+              <div class="doc-ratings-row">
+                <span>⭐ 4.8</span>
+                <span>120+ Consults</span>
+              </div>
+              <div class="doc-meta-list">
+                <div>Wait Time: <strong style="color:white;">5 mins</strong></div>
+                <div>Languages: <span style="color:white;">Hindi, English</span></div>
+              </div>
+              <button class="btn-primary doc-consult-btn" onclick="startConsultation('Dr. Priya Sharma', 'General Physician')">Consult Now</button>
+            </div>
+          </div>
+
+          <!-- Doc 2 -->
+          <div class="glass-card doctor-card">
+            <div class="doc-status-indicator">
+              <div class="doc-status-dot online"></div>
+              <span style="color:var(--severity-low);">Online</span>
+            </div>
+            <div class="doc-avatar-container">
+              <div class="appointment-avatar" style="background:#7c3aed;">AV</div>
+            </div>
+            <div style="flex:1;">
+              <h4 class="doc-name">Dr. Amit Verma</h4>
+              <p class="doc-specialty" data-key="spec_emergency">Emergency Specialist</p>
+              <div class="doc-ratings-row">
+                <span>⭐ 4.9</span>
+                <span>340+ Consults</span>
+              </div>
+              <div class="doc-meta-list">
+                <div>Wait Time: <strong style="color:var(--severity-critical);">2 mins</strong></div>
+                <div>Languages: <span style="color:white;">Hindi, English, Malvi</span></div>
+              </div>
+              <button class="btn-primary doc-consult-btn" onclick="startConsultation('Dr. Amit Verma', 'Emergency Medicine Specialist')">Consult Now</button>
+            </div>
+          </div>
+
+          <!-- Doc 3 -->
+          <div class="glass-card doctor-card">
+            <div class="doc-status-indicator">
+              <div class="doc-status-dot online"></div>
+              <span style="color:var(--severity-low);">Online</span>
+            </div>
+            <div class="doc-avatar-container">
+              <div class="appointment-avatar" style="background:#059669;">RK</div>
+            </div>
+            <div style="flex:1;">
+              <h4 class="doc-name">Dr. Rajesh Kumar</h4>
+              <p class="doc-specialty" data-key="spec_cardiology">Cardiologist</p>
+              <div class="doc-ratings-row">
+                <span>⭐ 4.9</span>
+                <span>210+ Consults</span>
+              </div>
+              <div class="doc-meta-list">
+                <div>Wait Time: <strong style="color:white;">8 mins</strong></div>
+                <div>Languages: <span style="color:white;">Hindi, English</span></div>
+              </div>
+              <button class="btn-primary doc-consult-btn" onclick="startConsultation('Dr. Rajesh Kumar', 'Cardiologist')">Consult Now</button>
+            </div>
+          </div>
+
+          <!-- Doc 4 (Offline) -->
+          <div class="glass-card doctor-card" style="opacity: 0.6;">
+            <div class="doc-status-indicator">
+              <div class="doc-status-dot offline"></div>
+              <span style="color:var(--text-muted);">Offline</span>
+            </div>
+            <div class="doc-avatar-container">
+              <div class="appointment-avatar" style="background:#4b5563;">SP</div>
+            </div>
+            <div style="flex:1;">
+              <h4 class="doc-name">Dr. Sunita Patel</h4>
+              <p class="doc-specialty" data-key="spec_pediatrics">Pediatrician</p>
+              <div class="doc-ratings-row">
+                <span>⭐ 4.7</span>
+                <span>85+ Consults</span>
+              </div>
+              <div class="doc-meta-list">
+                <div>Availability: <span style="color:var(--text-muted);">In 2 hours</span></div>
+                <div>Languages: <span style="color:white;">Hindi, Gujarati</span></div>
+              </div>
+              <button class="btn-secondary doc-consult-btn" disabled style="cursor:not-allowed;">Unavailable</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- View 7: Medical Profile Screen -->
+      <section id="view-profile" class="view-panel">
+        
+        <div class="glass-card">
+          <div class="profile-card-top">
+            <div class="profile-avatar-large">👤</div>
+            <div class="profile-details-info">
+              <h3 id="profile-user-name">Mr. James</h3>
+              <div class="profile-meta-row">
+                <span class="profile-meta-badge" id="profile-age-badge">68 Years Old</span>
+                <span class="profile-meta-badge" id="profile-blood-badge" style="background:rgba(37,99,235,0.15); color:white; font-weight:bold;">Blood: O+</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Critical Penicillin Allergy notification card box -->
+          <div class="critical-allergy-box">
+            <div class="allergy-title" data-key="allergy_title">Critical Allergy Alert</div>
+            <div class="allergy-value">Penicillin (पेनिसिलिन)</div>
+            <p style="font-size:0.65rem; color:var(--text-secondary); margin-top:0.15rem;" data-key="allergy_desc">Strictly avoid penicillin medications. Tissues are highly sensitive.</p>
+          </div>
+        </div>
+
+        <!-- Medical parameters info -->
+        <div class="glass-card">
+          <div class="profile-section-title" data-key="history_title">Clinical Parameters</div>
+          
+          <div class="profile-list-item">
+            <div class="profile-list-item-left">
+              <span class="icon">🌡️</span>
+              <p data-key="param_vitals">Current Symptoms</p>
+            </div>
+            <div class="profile-list-item-right" style="color:var(--severity-medium); font-weight:bold;">Headache, Warm Fever</div>
+          </div>
+
+          <div class="profile-list-item">
+            <div class="profile-list-item-left">
+              <span class="icon">🧬</span>
+              <p data-key="param_history">Medical History</p>
+            </div>
+            <div class="profile-list-item-right" style="color:white;">Hypertension (12 years)</div>
+          </div>
+
+          <div class="profile-list-item">
+            <div class="profile-list-item-left">
+              <span class="icon">📜</span>
+              <p data-key="param_presc">Active Prescriptions</p>
+            </div>
+            <div class="profile-list-item-right" style="color:white; text-align:right;">Lisinopril, Metformin,<br>Atorvastatin</div>
+          </div>
+        </div>
+
+        <!-- Emergency Contact Panel -->
+        <div class="glass-card">
+          <div class="profile-section-title" data-key="emergency_contacts_title">Emergency Contacts (Speed Dial)</div>
+          
+          <div id="profile-contacts-list">
+            <!-- Dynamic emergency contacts are rendered here -->
+          </div>
+          
+          <button class="btn-secondary" style="width: 100%; margin-top: 0.75rem; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 0.25rem;" onclick="openManageContacts(true)">
+            ➕ Add New Contact (Family / Doctor)
+          </button>
+        </div>
+
+        <!-- Speed Dial Editor Inline Card Drawer -->
+        <div class="glass-card" id="manage-contacts-drawer" style="display: none; margin-top: 1rem; border-color: var(--accent-purple);">
+          <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+            <h3 style="font-size:0.85rem;" id="contact-drawer-title">Add / Edit Contact</h3>
+          </div>
+          <div class="expiry-checker-form">
+            <input type="hidden" id="edit-contact-id">
+            
+            <div class="form-group">
+              <label>Contact Type</label>
+              <select id="edit-contact-type" onchange="onContactTypeChange()" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-glow); border-radius:10px; padding:0.6rem; color:white; font-size:0.85rem; outline:none; height:40px; width:100%;">
+                <option value="family">Family Member (Wife, Daughter, etc.)</option>
+                <option value="doctor">Doctor / Medical Consultant</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="edit-contact-name" placeholder="e.g. Sarah James or Dr. Amit Verma">
+            </div>
+            
+            <div class="form-group">
+              <label id="lbl-contact-relation">Relation / Specialty</label>
+              <input type="text" id="edit-contact-relation" placeholder="e.g. Daughter, Wife, Cardiologist">
+            </div>
+            
+            <div class="form-group">
+              <label>Phone Number</label>
+              <input type="tel" id="edit-contact-phone" placeholder="e.g. +91 9988776655">
+            </div>
+            
+            <div class="form-group">
+              <label>Short Details (Optional)</label>
+              <input type="text" id="edit-contact-desc" placeholder="e.g. Primary Contact, Available 24/7">
+            </div>
+            
+            <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+              <button class="btn-primary" style="flex:1;" onclick="saveContact()">Save Contact</button>
+              <button class="btn-secondary" style="flex:1; border-color:var(--severity-critical); color:var(--severity-critical); display:none;" id="btn-delete-contact" onclick="deleteContact()">Delete</button>
+              <button class="btn-secondary" style="flex:1;" onclick="closeManageContacts()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Uploaded reports explorer list -->
+        <div class="glass-card">
+          <div class="profile-section-title" data-key="uploaded_files_title">Uploaded Medical Files</div>
+          
+          <div id="profile-reports-list">
+            <!-- Dynamic uploaded reports are rendered here -->
+          </div>
+
+          <div style="margin-top: 1rem;">
+            <label for="report-file-upload" class="btn-primary" style="display:flex; align-items:center; justify-content:center; gap:0.5rem; cursor:pointer; font-size:0.8rem; padding:0.6rem; width:100%; border-radius:12px; text-align:center; transition: var(--transition-smooth); font-family: Outfit; font-weight: 600;">
+              📤 Upload Medical Report (PDF/Image)
+            </label>
+            <input type="file" id="report-file-upload" style="display:none;" onchange="handleReportUpload(event)">
+          </div>
+        </div>
+
+        <button class="btn-secondary" style="width: 100%; border-color:var(--severity-critical); color:var(--severity-critical);" onclick="logoutRole()">
+          Logout Profile
+        </button>
+
+      </section>
+
+      <!-- View 8: Medicine Safety Expiry Checker -->
+      <section id="view-checker" class="view-panel">
+        
+        <!-- manual verify safety card -->
+        <div class="glass-card">
+          <div class="card-header" style="margin-bottom:0.75rem; padding-bottom:0.25rem;">
+            <div class="card-title-group">
+              <span style="font-size:1.1rem;">✏</span>
+              <h3 data-key="expiry_manual_title">Verify Expiry Details</h3>
+            </div>
+          </div>
+          
+          <div class="expiry-checker-form">
+            <div class="form-group">
+              <label for="medicine-name-input" data-key="medicine_name_label">Medicine Name</label>
+              <input type="text" id="medicine-name-input" placeholder="e.g. Paracetamol 500mg">
+            </div>
+            <div class="form-group">
+              <label for="medicine-date-input" data-key="expiry_date_label">Expiration Date</label>
+              <input type="month" id="medicine-date-input">
+            </div>
+            <button id="btn-check-expiry" class="btn-primary" onclick="checkMedicineExpiry()">
+              <span data-key="check_safety_btn">Verify Medicine Safety</span>
+            </button>
+          </div>
+
+          <!-- Expiry checker feedback alerts -->
+          <div id="expiry-result-box" class="checker-result-card">
+            <div id="expiry-result-display" class="result-display safe">
+              <div class="result-icon-box" id="expiry-result-icon">✓</div>
+              <div class="result-details">
+                <h4 id="expiry-result-title">Safe to Consume</h4>
+                <p id="expiry-result-desc">Medicine is within its active shelf life. Store in a cool dry place.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Camera OCR Scanner Card -->
+        <div class="glass-card ocr-scanner-card">
+          <div class="ocr-icon" id="ocr-card-icon">📸</div>
+          <h3 data-key="ocr_scan_title" id="ocr-card-title">Camera OCR Scanner</h3>
+          <p style="font-size:0.75rem; color:var(--text-secondary); max-width:260px; margin-bottom:0.75rem;" data-key="ocr_scan_desc" id="ocr-card-desc">Scan strips directly with your camera to extract expiry dates automatically.</p>
+          
+          <!-- Scanner Video View Wrapper -->
+          <div id="scanner-container" style="display:none; position:relative; width:100%; border-radius:12px; overflow:hidden; border:1px solid var(--border-glow); margin-bottom:0.75rem; background:#000;">
+            <video id="scanner-video" autoplay playsinline style="width:100%; height:200px; object-fit:cover; display:block;"></video>
+            <!-- Overlay guidelines for aligning the date -->
+            <div style="position:absolute; top:50%; left:10px; right:10px; height:40px; border:2px dashed var(--accent-blue); transform:translateY(-50%); pointer-events:none; border-radius:6px; display:flex; align-items:center; justify-content:center;">
+              <span style="font-size:0.6rem; color:var(--accent-blue); font-weight:bold; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:3px;">ALIGN EXPIRY DATE HERE</span>
+            </div>
+          </div>
+          
+          <canvas id="scanner-canvas" style="display:none;"></canvas>
+          
+          <!-- Loading Text with pulsing animation -->
+          <div id="ocr-loading-status" style="display:none; text-align:center; margin-bottom:0.75rem;">
+            <div class="voice-indicator-dot" style="display:inline-block; margin-right:5px; background:var(--accent-blue);"></div>
+            <span id="ocr-loading-text" style="font-size:0.75rem; color:var(--accent-blue); font-weight:bold;">Reading medicine strip text...</span>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:0.5rem; width:100%;">
+            <button id="btn-open-scanner" class="btn-secondary" style="width:100%;" onclick="openOcrScanner()">
+              📸 <span data-key="ocr_btn">Open Camera Scanner</span>
+            </button>
+            <button id="btn-capture-scanner" class="btn-primary" style="width:100%; display:none;" onclick="captureOcrImage()">
+              📷 <span>Capture & Analyze Expiry</span>
+            </button>
+            <button id="btn-close-scanner" class="btn-secondary" style="width:100%; display:none; border-color:var(--severity-critical); color:var(--severity-critical);" onclick="closeOcrScanner()">
+              <span>Cancel / Close</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Offline Library Pre-Cached indicators -->
+        <div class="glass-card" id="offline-resources">
+          <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+            <div class="card-title-group">
+              <span class="offline-badge-pill" data-key="offline_badge">OFFLINE SAFE</span>
+              <h3 style="font-size:0.8rem; font-weight:bold;" data-key="offline_resources_title">Local Pre-Cached Guidance</h3>
+            </div>
+          </div>
+          <p style="font-size:0.75rem; color:var(--text-secondary);" data-key="offline_resources_desc">GramCare caches vital first-aid guides. These work instantly without any network connection in zero-reception areas.</p>
+          
+          <div class="offline-protocols-list">
+            <div class="offline-proto-card" onclick="loadOfflineProtocol('snake_bite')">
+              <div class="offline-proto-title">🐍 Snake Bites</div>
+              <div class="offline-proto-desc" data-key="proto_snake_desc">Immobilization and anti-venom advice</div>
+            </div>
+            <div class="offline-proto-card" onclick="loadOfflineProtocol('chest_pain')">
+              <div class="offline-proto-title">💔 Cardiac Care</div>
+              <div class="offline-proto-desc" data-key="proto_chest_desc">Immediate steps for suspected heart attacks</div>
+            </div>
+            <div class="offline-proto-card" onclick="loadOfflineProtocol('choking')">
+              <div class="offline-proto-title">窒 Choking Protocol</div>
+              <div class="offline-proto-desc" data-key="proto_choke_desc">Abdominal thrusts and posture correction</div>
+            </div>
+            <div class="offline-proto-card" onclick="loadOfflineProtocol('burns')">
+              <div class="offline-proto-title">🔥 Cooling Burns</div>
+              <div class="offline-proto-desc" data-key="proto_burns_desc">Heat trapping myths vs cool water action</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- View 9: Doctor Portal Dashboard -->
+      <section id="view-docdashboard" class="view-panel">
+        
+        <!-- Emergency Join consultation alarm banner -->
+        <div class="consultation-alert-card" id="doctor-emergency-alert">
+          <span class="consultation-alert-icon">🚨</span>
+          <div class="consultation-alert-info">
+            <h4 data-key="alert_cardiac_title">Critical Emergency: Cardiac Arrhythmia</h4>
+            <p data-key="alert_cardiac_desc">Patient: Sarah Jenkins • Room 402 • Rural Clinic Alpha</p>
+            <button class="btn-join-call" onclick="startConsultation('Sarah Jenkins (Emergency Room 402)', 'Emergency Critical Patient')">JOIN VIDEO CALL NOW</button>
+          </div>
+        </div>
+
+        <div class="glass-card" style="padding:0.75rem 1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size:0.95rem;">MediNova Clinical Console</h3>
+            <span style="font-size:0.65rem; color:var(--severity-low); font-weight:bold;">● SECURE VPN</span>
+          </div>
+        </div>
+
+        <!-- Doctor Portal quick stats -->
+        <div class="stats-bar-doctor">
+          <div class="doc-stat-box">
+            <div class="doc-stat-num">14</div>
+            <div class="doc-stat-lbl">Active Consults</div>
+          </div>
+          <div class="doc-stat-box">
+            <div class="doc-stat-num" id="doc-pending-requests-count">08</div>
+            <div class="doc-stat-lbl">Pending Requests</div>
+          </div>
+          <div class="doc-stat-box">
+            <div class="doc-stat-num">02</div>
+            <div class="doc-stat-lbl">Alert Rooms</div>
+          </div>
+        </div>
+
+        <!-- Patient Queue checklist -->
+        <div class="glass-card" id="doctor-patient-queue-box">
+          <div class="card-header" style="margin-bottom:0.5rem; padding-bottom:0.25rem;">
+            <h3 style="font-size:0.85rem;">Active Patient Queue</h3>
+          </div>
+          <div class="reminder-list-container" id="doctor-queue-list">
+            
+            <!-- Queue Item 1 -->
+            <div class="queue-card-item" id="queue-item-martha">
+              <div class="queue-card-left">
+                <div class="queue-avatar">MR</div>
+                <div class="queue-info">
+                  <h4>Martha Robinson (82 Yrs)</h4>
+                  <p>Respiratory Distress • Waiting: 12m</p>
+                  <span class="queue-badge high">High Priority</span>
+                </div>
+              </div>
+              <button class="btn-accept-req" onclick="acceptPatientRequest('martha', 'Martha Robinson')">Accept</button>
+            </div>
+
+            <!-- Queue Item 2 -->
+            <div class="queue-card-item" id="queue-item-elena">
+              <div class="queue-card-left">
+                <div class="queue-avatar">EG</div>
+                <div class="queue-info">
+                  <h4>Elena Gupta (74 Yrs)</h4>
+                  <p>Post-Op Follow-up • Waiting: 22m</p>
+                  <span class="queue-badge medium">Medium Priority</span>
+                </div>
+              </div>
+              <button class="btn-accept-req" onclick="acceptPatientRequest('elena', 'Elena Gupta')">Accept</button>
+            </div>
+
+            <!-- Queue Item 3 -->
+            <div class="queue-card-item" id="queue-item-arthur">
+              <div class="queue-card-left">
+                <div class="queue-avatar">AV</div>
+                <div class="queue-info">
+                  <h4>Arthur Vance (67 Yrs)</h4>
+                  <p>Prescription Renewal • Waiting: 45m</p>
+                  <span class="queue-badge routine">Routine</span>
+                </div>
+              </div>
+              <button class="btn-accept-req" onclick="acceptPatientRequest('arthur', 'Arthur Vance')">Accept</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Mr. James Carter clinical records folder -->
+        <div class="glass-card" id="doc-patient-record-folder">
+          <div class="patient-detail-card-header">
+            <div class="profile-avatar-large" style="background:var(--accent-purple);">JC</div>
+            <div>
+              <h3 style="font-size:0.95rem;">Mr. James Carter</h3>
+              <p style="font-size:0.7rem; color:var(--text-secondary);">72 Years Old • Type 2 Diabetes • <span style="color:var(--severity-critical); font-weight:bold;">CRITICAL PRIORITY</span></p>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+            <div class="vital-card" style="flex:1; padding:0.5rem;">
+              <span class="vital-title">Heart Rate</span>
+              <span class="vital-value" style="font-size:0.9rem; color:var(--severity-critical);">88 BPM</span>
+            </div>
+            <div class="vital-card" style="flex:1; padding:0.5rem;">
+              <span class="vital-title">SPO2 Vitals</span>
+              <span class="vital-value" style="font-size:0.9rem; color:var(--severity-low);">94%</span>
+            </div>
+          </div>
+
+          <!-- AI Intelligence clinical analysis block -->
+          <div class="clinical-summary-box" style="margin-bottom:0.75rem;">
+            <div style="font-weight:bold; color:var(--accent-blue); margin-bottom:0.25rem;">✦ AI INTELLIGENCE CLINICAL SUMMARY</div>
+            Mr. Carter reports increasing <strong>shortness of breath</strong> over the last 48 hours. Connected wearables indicate a 15% increase in resting heart rate. Potential early-stage pulmonary edema or anxiety-induced exacerbation.<br>
+            <span style="color:white; font-weight:bold;">Recommended Action:</span> Initiate immediate Video Consultation to assess respiratory effort.
+          </div>
+
+          <!-- Prescription digital pad writer -->
+          <div class="prescription-composer">
+            <div style="font-size:0.75rem; font-weight:bold; text-transform:uppercase; color:var(--text-secondary);">Digital Prescription Writer</div>
+            <input type="text" id="doc-presc-med-name" placeholder="Medicine Name (e.g. Lisinopril 10mg)">
+            <select id="doc-presc-frequency">
+              <option value="once-daily">Once Daily (1-0-0)</option>
+              <option value="twice-daily">Twice Daily (1-0-1)</option>
+              <option value="three-times">Three Times (1-1-1)</option>
+            </select>
+            <button onclick="submitDoctorPrescription()">Add to Care Plan</button>
+          </div>
+        </div>
+
+        <button class="btn-secondary" style="width: 100%; border-color:var(--severity-critical); color:var(--severity-critical); margin-top:1rem;" onclick="logoutRole()">
+          Logout Portal
+        </button>
+
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar shell component -->
+    <nav class="app-bottom-nav" id="app-nav-bar" style="display: none;">
+      <a class="bottom-nav-link active" id="btn-nav-home" onclick="showView('dashboard')">
+        <span class="nav-icon">🏠</span>
+        <span data-key="nav_home">Home</span>
+      </a>
+      <a class="bottom-nav-link" id="btn-nav-chat" onclick="showView('chatbot')">
+        <span class="nav-icon">💬</span>
+        <span data-key="nav_chat">Chat</span>
+      </a>
+      <a class="bottom-nav-link" id="btn-nav-reminders" onclick="showView('reminders')">
+        <span class="nav-icon">⏰</span>
+        <span data-key="nav_checker">Pills</span>
+        <div class="nav-dot-badge" id="nav-badge-reminders"></div>
+      </a>
+      <a class="bottom-nav-link" id="btn-nav-doctors" onclick="showView('doctors')">
+        <span class="nav-icon">🩺</span>
+        <span data-key="nav_doctors">Doctor</span>
+      </a>
+      <a class="bottom-nav-link" id="btn-nav-profile" onclick="showView('profile')">
+        <span class="nav-icon">👤</span>
+        <span data-key="nav_home">Profile</span>
+      </a>
+    </nav>
+
+  </div>
+
+  <!-- Toast Notification System container -->
+  <div class="toast-container" id="toast-notification-box"></div>
+
+  <!-- Simulated video room telemedicine consult overlay -->
+  <div id="consultation-room-overlay" class="consultation-overlay">
+    <div class="consultation-modal">
+      <div class="consult-video-pane">
+        <!-- Call simulated cover -->
+        <div style="width: 100%; height: 100%; background: #1F2937; display: flex; align-items: center; justify-content: center; color: white; flex-direction: column; font-family: Outfit; padding: 1.5rem; text-align: center;">
+          <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: dotPulse 1.5s infinite alternate;">🩺</div>
+          <h3 id="consult-doctor-title">Connecting to Telemed...</h3>
+          <p id="consult-doctor-subtitle" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem;">Establishing secure end-to-end encrypted channel</p>
+        </div>
+        
+        <!-- Local camera user pip overlay -->
+        <div class="consult-user-pip">
+          <div style="width: 100%; height: 100%; background: #374151; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white;">👤</div>
+        </div>
+
+        <!-- control buttons bar overlay -->
+        <div class="consult-controls">
+          <button class="consult-btn-round" title="Mute Mic" onclick="showToast('Microphone muted', 'info')">🎤</button>
+          <button class="consult-btn-round" title="Camera Off" onclick="showToast('Camera toggled', 'info')">📷</button>
+          <button class="consult-btn-round decline" title="Decline Consultation" onclick="endConsultation()">🚫</button>
+        </div>
+      </div>
+
+      <!-- side chat logs notes -->
+      <div class="consult-chat-pane">
+        <div class="consult-chat-header">
+          <h4 style="color: white;" data-key="consult_chat_label">Consultation Notes</h4>
+          <span style="font-size: 0.6rem; color: var(--severity-low); font-weight: bold;">● ENCRYPTED</span>
+        </div>
+        
+        <div class="consult-chat-messages" id="consult-chat-messages-box">
+          <div class="message-bubble assistant" style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+            <p>System: Dr. Priya Sharma joined the virtual telemedicine session.</p>
+          </div>
+          <div class="message-bubble assistant" style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+            <p><strong>Dr. Priya Sharma:</strong> Namaste. Please tell me what symptoms you are experiencing. Are you in a safe environment?</p>
+          </div>
+        </div>
+
+        <div class="consult-chat-input" style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+          <div class="input-wrapper" style="flex:1; display:flex; align-items:center; background:rgba(0,0,0,0.25); border:1px solid var(--border-glow); border-radius:12px; padding:0 0.5rem;">
+            <input type="text" id="consult-chat-input-field" placeholder="Reply to the doctor..." onkeydown="handleConsultChatKey(event)" style="flex:1; background:transparent; border:none; color:white; font-size:0.85rem; outline:none; height:40px; padding:0 0.25rem;">
+            <button id="btn-mic-consult" class="mic-btn-main" title="Voice Input" onclick="toggleConsultVoiceInput()" style="background:transparent; border:none; color:white; font-size:1.1rem; cursor:pointer; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:all 0.2s ease;">
+              🎤
+            </button>
+          </div>
+          <button class="submit-btn" style="width: 40px; height: 40px; flex-shrink:0;" onclick="sendConsultChatMessage()">
+            ➔
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
